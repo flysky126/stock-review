@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - 股票复盘系统{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">仪表盘</h2>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card bg-primary text-white p-3">
+            <h6>总交易次数</h6>
+            <h2>{{ total_trades }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-success text-white p-3">
+            <h6>持仓股票数</h6>
+            <h2>{{ holdings|length }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-warning text-white p-3">
+            <h6>监控股票数</h6>
+            <h2>{{ stocks|length }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-info text-white p-3">
+            <h6>系统状态</h6>
+            <h2><i class="bi bi-check-circle"></i> 运行中</h2>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="bi bi-briefcase me-2"></i>当前持仓</h5>
+    </div>
+    <div class="card-body">
+        {% if holdings %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>股票代码</th>
+                        <th>股票名称</th>
+                        <th>持仓数量</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in holdings %}
+                    <tr>
+                        <td>{{ h.code }}</td>
+                        <td>{{ h.name }}</td>
+                        <td>{{ h.quantity }}</td>
+                        <td><a href="/stock/{{ h.code }}" class="btn btn-sm btn-outline-primary">查看</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center">暂无持仓记录</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

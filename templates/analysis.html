@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}数据分析 - 股票复盘系统{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">数据分析</h2>
+
+<div class="card mb-4">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">股票收益分析</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="analysisTable">
+                <thead>
+                    <tr>
+                        <th>股票代码</th>
+                        <th>股票名称</th>
+                        <th>交易次数</th>
+                        <th>当前持仓</th>
+                        <th>平均成本</th>
+                        <th>总投入</th>
+                        <th>总收益</th>
+                        <th>收益率</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in analysis_data %}
+                    <tr>
+                        <td>{{ d.code }}</td>
+                        <td>{{ d.name }}</td>
+                        <td>{{ d.total_trades }}</td>
+                        <td>{{ d.current_qty }}</td>
+                        <td>{{ "%.2f"|format(d.avg_cost) }}</td>
+                        <td>{{ "%.2f"|format(d.total_invested) }}</td>
+                        <td class="{% if d.total_return >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format(d.total_return) }}
+                        </td>
+                        <td class="{% if d.return_rate >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format(d.return_rate) }}%
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if analysis_data %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">收益率分布</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="returnChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">交易统计</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="tradeChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const analysisData = {{ analysis_data|tojson }};
+
+if (analysisData.length > 0) {
+    const returnCtx = document.getElementById('returnChart').getContext('2d');
+    new Chart(returnCtx, {
+        type: 'bar',
+        data: {
+            labels: analysisData.map(d => d.code),
+            datasets: [{
+                label: '收益率 (%)',
+                data: analysisData.map(d => d.return_rate),
+                backgroundColor: analysisData.map(d => d.return_rate >= 0 ? '#28a745' : '#dc3545')
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    const tradeCtx = document.getElementById('tradeChart').getContext('2d');
+    new Chart(tradeCtx, {
+        type: 'pie',
+        data: {
+            labels: analysisData.map(d => d.code),
+            datasets: [{
+                data: analysisData.map(d => d.total_trades),
+                backgroundColor: ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c']
+            }]
+        },
+        options: {
+            responsive: true
+        }
+    });
+}
+</script>
+{% endblock %}

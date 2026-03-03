@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}{{ stock.name }} - 股票详情{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">{{ stock.code }} - {{ stock.name }}</h2>
+
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">交易历史</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>类型</th>
+                        <th>价格</th>
+                        <th>数量</th>
+                        <th>手续费</th>
+                        <th>总额</th>
+                        <th>备注</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in trades %}
+                    <tr>
+                        <td>{{ trade.trade_date }}</td>
+                        <td>
+                            {% if trade.trade_type == 'buy' %}
+                            <span class="badge bg-success">买入</span>
+                            {% else %}
+                            <span class="badge bg-danger">卖出</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.2f"|format(trade.price) }}</td>
+                        <td>{{ trade.quantity }}</td>
+                        <td>{{ "%.2f"|format(trade.commission) }}</td>
+                        <td>{{ "%.2f"|format(trade.total_amount) }}</td>
+                        <td>{{ trade.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="/trades" class="btn btn-secondary">返回列表</a>
+    <a href="/trade/add" class="btn btn-primary">添加交易</a>
+</div>
+{% endblock %}

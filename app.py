@@ -2,32 +2,21 @@ import os
 import sys
 from flask import Flask
 from config import Config
-from models import db
-from routes import api_bp, views_bp
 
-def get_resource_path(relative_path):
-    """获取资源文件的绝对路径"""
-    if hasattr(sys, '_MEIPASS'):
-        base_path = sys._MEIPASS
-    else:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
 def create_app(config_class=Config):
-    template_folder = get_resource_path('templates')
-
-    app = Flask(__name__, template_folder=template_folder)
+    app = Flask(__name__, template_folder=os.path.join(current_dir, 'templates'))
     app.config.from_object(config_class)
 
-    # Railway环境
-    if os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('PORT'):
-        port = int(os.environ.get('PORT', 5000))
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or \
-            f'sqlite:///{os.path.join(os.path.dirname(__file__), "stock_review.db")}'
-    else:
-        # 本地/Windows打包
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(base_dir, "stock_review.db")}'
+    db_path = os.path.join(current_dir, 'stock_review.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+
+    from models import db
+    from routes.views import views_bp
+    from routes.api import api_bp
 
     db.init_app(app)
     app.register_blueprint(views_bp)

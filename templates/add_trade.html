@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}添加交易 - 股票复盘系统{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">添加交易记录</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">股票代码</label>
+                    <input type="text" class="form-control" name="code" required placeholder="如: 600519">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">股票名称</label>
+                    <input type="text" class="form-control" name="name" required placeholder="如: 贵州茅台">
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">交易类型</label>
+                    <select class="form-select" name="trade_type" required>
+                        <option value="buy">买入</option>
+                        <option value="sell">卖出</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">交易日期</label>
+                    <input type="date" class="form-control" name="trade_date" required id="tradeDate">
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">成交价格</label>
+                    <input type="number" step="0.01" class="form-control" name="price" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">成交数量</label>
+                    <input type="number" class="form-control" name="quantity" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">手续费</label>
+                    <input type="number" step="0.01" class="form-control" name="commission" value="0">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">备注</label>
+                <textarea class="form-control" name="notes" rows="2" placeholder="可选备注信息"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle me-2"></i>保存
+            </button>
+            <a href="/trades" class="btn btn-secondary ms-2">取消</a>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('tradeDate').valueAsDate = new Date();
+</script>
+{% endblock %}

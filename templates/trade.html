@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}交易记录 - 股票复盘系统{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">交易记录</h2>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>股票代码</th>
+                        <th>股票名称</th>
+                        <th>类型</th>
+                        <th>价格</th>
+                        <th>数量</th>
+                        <th>手续费</th>
+                        <th>总额</th>
+                        <th>备注</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in trades.items %}
+                    <tr>
+                        <td>{{ trade.trade_date }}</td>
+                        <td>{{ trade.stock.code }}</td>
+                        <td>{{ trade.stock.name }}</td>
+                        <td>
+                            {% if trade.trade_type == 'buy' %}
+                            <span class="badge bg-success">买入</span>
+                            {% else %}
+                            <span class="badge bg-danger">卖出</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.2f"|format(trade.price) }}</td>
+                        <td>{{ trade.quantity }}</td>
+                        <td>{{ "%.2f"|format(trade.commission) }}</td>
+                        <td>{{ "%.2f"|format(trade.total_amount) }}</td>
+                        <td>{{ trade.notes or '-' }}</td>
+                        <td>
+                            <form action="/trade/delete/{{ trade.id }}" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定删除?')">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if trades.pages > 1 %}
+        <nav>
+            <ul class="pagination justify-content-center">
+                {% if trades.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.prev_num) }}">上一页</a></li>
+                {% endif %}
+                <li class="page-item active"><span class="page-link">{{ trades.page }} / {{ trades.pages }}</span></li>
+                {% if trades.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.next_num) }}">下一页</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
