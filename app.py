@@ -35,3 +35,7 @@ if __name__ == '__main__':
     print(f"访问地址: http://localhost:{port}")
     print("=" * 50)
     app.run(host='0.0.0.0', port=port, debug=False)
+
+# Vercel 入口点
+app = create_app()
+

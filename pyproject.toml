@@ -1,0 +1,7 @@
+[project]
+name = "stock-review"
+version = "0.1.0"
+private = true
+
+[tool.vercel]
+app = "app.py"
