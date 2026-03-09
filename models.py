@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import sqlalchemy as sa
 
 db = SQLAlchemy()
 
@@ -24,8 +25,21 @@ class Trade(db.Model):
     commission = db.Column(db.Float, default=0)
     trade_date = db.Column(db.Date, nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    buy_reason = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
     def total_amount(self):
         return self.price * self.quantity + self.commission
+
+
+def ensure_trade_schema():
+    """Add backward-compatible columns for existing deployments."""
+    inspector = sa.inspect(db.engine)
+    if 'trades' not in inspector.get_table_names():
+        return
+
+    columns = {col['name'] for col in inspector.get_columns('trades')}
+    if 'buy_reason' not in columns:
+        with db.engine.begin() as conn:
+            conn.execute(sa.text('ALTER TABLE trades ADD COLUMN buy_reason TEXT'))

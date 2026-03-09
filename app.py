@@ -16,7 +16,7 @@ def create_app(config_class=Config):
     if is_vercel:
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
 
-    from models import db
+    from models import db, ensure_trade_schema
     from routes.views import views_bp
     from routes.api import api_bp
 
@@ -27,6 +27,7 @@ def create_app(config_class=Config):
     # Vercel 环境每次请求创建新表
     with app.app_context():
         db.create_all()
+        ensure_trade_schema()
 
     return app
 
@@ -40,4 +41,3 @@ if __name__ == '__main__':
     print(f"访问地址: http://localhost:{port}")
     print("=" * 50)
     app.run(host='0.0.0.0', port=port, debug=False)
-

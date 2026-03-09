@@ -51,6 +51,7 @@ def add_trade():
         commission = float(request.form.get('commission', 0))
         trade_date = datetime.strptime(request.form.get('trade_date'), '%Y-%m-%d').date()
         notes = request.form.get('notes', '')
+        buy_reason = request.form.get('buy_reason', '').strip()
 
         stock = Stock.query.filter_by(code=code).first()
         if not stock:
@@ -65,7 +66,8 @@ def add_trade():
             quantity=quantity,
             commission=commission,
             trade_date=trade_date,
-            notes=notes
+            notes=notes,
+            buy_reason=buy_reason or None
         )
         db.session.add(trade)
         db.session.commit()

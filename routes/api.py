@@ -24,6 +24,7 @@ def get_stock(stock_id):
             'commission': t.commission,
             'total': t.total_amount,
             'date': t.trade_date.isoformat(),
+            'buy_reason': t.buy_reason,
             'notes': t.notes
         } for t in trades]
     })

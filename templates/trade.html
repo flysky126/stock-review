@@ -19,6 +19,7 @@
                         <th>数量</th>
                         <th>手续费</th>
                         <th>总额</th>
+                        <th>买入原因</th>
                         <th>备注</th>
                         <th>操作</th>
                     </tr>
@@ -40,6 +41,7 @@
                         <td>{{ trade.quantity }}</td>
                         <td>{{ "%.2f"|format(trade.commission) }}</td>
                         <td>{{ "%.2f"|format(trade.total_amount) }}</td>
+                        <td>{{ trade.buy_reason or '-' }}</td>
                         <td>{{ trade.notes or '-' }}</td>
                         <td>
                             <form action="/trade/delete/{{ trade.id }}" method="POST" style="display:inline;">
