@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}行情查询 - 股票复盘系统{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">行情查询</h2>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('views.market_query') }}" class="row g-3">
+            <div class="col-md-9">
+                <label class="form-label">股票名称</label>
+                <input
+                    type="text"
+                    class="form-control"
+                    name="stock_name"
+                    value="{{ stock_query }}"
+                    placeholder="输入股票名称（如：贵州茅台）或 6 位代码（如：600519）"
+                >
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>查询近一月
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if info_message %}
+<div class="alert alert-info">{{ info_message }}</div>
+{% endif %}
+
+{% if error_message %}
+<div class="alert alert-danger">{{ error_message }}</div>
+{% endif %}
+
+{% if chart_labels and chart_values %}
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">
+            {{ resolved_name }}（{{ resolved_code }}）近一个月收盘价走势
+        </h5>
+    </div>
+    <div class="card-body">
+        <canvas id="priceChart"></canvas>
+        <div class="mt-3 text-muted small">
+            区间：{{ chart_labels[0] }} 至 {{ chart_labels[-1] }}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if chart_labels and chart_values %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const labels = {{ chart_labels|tojson }};
+const values = {{ chart_values|tojson }};
+
+const ctx = document.getElementById('priceChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: '收盘价',
+            data: values,
+            borderColor: '#3498db',
+            backgroundColor: 'rgba(52, 152, 219, 0.12)',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.25,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: false
+            }
+        }
+    }
+});
+</script>
+<style>
+#priceChart {
+    min-height: 360px;
+}
+</style>
+{% endif %}
+{% endblock %}
