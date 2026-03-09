@@ -5,6 +5,30 @@
 {% block content %}
 <h2 class="mb-4">交易记录</h2>
 
+<div class="card mb-3">
+    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+        <a href="{{ url_for('views.trades', view='all') }}"
+           class="btn btn-sm {% if view_mode == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            全部查看
+        </a>
+
+        <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ url_for('views.trades') }}">
+            <input type="hidden" name="view" value="month">
+            <select class="form-select form-select-sm" name="month">
+                <option value="">选择月份</option>
+                {% for month in available_months %}
+                <option value="{{ month }}" {% if month == selected_month %}selected{% endif %}>{{ month }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary">按月查看</button>
+        </form>
+
+        {% if view_mode == 'month' and selected_month %}
+        <span class="text-muted small">当前月份：{{ selected_month }}</span>
+        {% endif %}
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
@@ -19,7 +43,7 @@
                         <th>数量</th>
                         <th>手续费</th>
                         <th>总额</th>
-                        <th>买入原因</th>
+                        <th>买入原因/卖出原因</th>
                         <th>备注</th>
                         <th>操作</th>
                     </tr>
@@ -58,11 +82,11 @@
         <nav>
             <ul class="pagination justify-content-center">
                 {% if trades.has_prev %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.prev_num) }}">上一页</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.prev_num, view=view_mode, month=selected_month) }}">上一页</a></li>
                 {% endif %}
                 <li class="page-item active"><span class="page-link">{{ trades.page }} / {{ trades.pages }}</span></li>
                 {% if trades.has_next %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.next_num) }}">下一页</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.next_num, view=view_mode, month=selected_month) }}">下一页</a></li>
                 {% endif %}
             </ul>
         </nav>

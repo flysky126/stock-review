@@ -5,6 +5,35 @@ import sqlalchemy as sa
 
 views_bp = Blueprint('views', __name__)
 
+
+def _parse_month_range(month_value):
+    try:
+        start_date = datetime.strptime(f'{month_value}-01', '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None, None
+
+    if start_date.month == 12:
+        end_date = start_date.replace(year=start_date.year + 1, month=1, day=1)
+    else:
+        end_date = start_date.replace(month=start_date.month + 1, day=1)
+
+    return start_date, end_date
+
+
+def _available_trade_months():
+    date_rows = db.session.query(Trade.trade_date).order_by(Trade.trade_date.desc()).all()
+    months = []
+    seen = set()
+
+    for (trade_date,) in date_rows:
+        month_key = trade_date.strftime('%Y-%m')
+        if month_key in seen:
+            continue
+        seen.add(month_key)
+        months.append(month_key)
+
+    return months
+
 @views_bp.route('/')
 def index():
     stocks = Stock.query.all()
@@ -34,11 +63,39 @@ def index():
 def trades():
     page = request.args.get('page', 1, type=int)
     per_page = 20
+    view_mode = request.args.get('view', 'all')
+    selected_month = request.args.get('month', '').strip()
+    available_months = _available_trade_months()
 
-    trades_query = Trade.query.order_by(Trade.trade_date.desc(), Trade.id.desc())
+    if view_mode not in {'all', 'month'}:
+        view_mode = 'all'
+
+    if view_mode == 'month' and not selected_month and available_months:
+        selected_month = available_months[0]
+
+    trades_query = Trade.query
+    if view_mode == 'month' and selected_month:
+        start_date, end_date = _parse_month_range(selected_month)
+        if start_date and end_date:
+            trades_query = trades_query.filter(
+                Trade.trade_date >= start_date,
+                Trade.trade_date < end_date
+            )
+        else:
+            view_mode = 'all'
+            selected_month = ''
+            flash('月份格式无效，已切换到全部记录。', 'warning')
+
+    trades_query = trades_query.order_by(Trade.trade_date.desc(), Trade.id.desc())
     trades = trades_query.paginate(page=page, per_page=per_page, error_out=False)
 
-    return render_template('trade.html', trades=trades)
+    return render_template(
+        'trade.html',
+        trades=trades,
+        view_mode=view_mode,
+        selected_month=selected_month,
+        available_months=available_months
+    )
 
 @views_bp.route('/trade/add', methods=['GET', 'POST'])
 def add_trade():
@@ -87,11 +144,36 @@ def delete_trade(trade_id):
 
 @views_bp.route('/analysis')
 def analysis():
+    view_mode = request.args.get('view', 'all')
+    selected_month = request.args.get('month', '').strip()
+    available_months = _available_trade_months()
+
+    if view_mode not in {'all', 'month'}:
+        view_mode = 'all'
+
+    if view_mode == 'month' and not selected_month and available_months:
+        selected_month = available_months[0]
+
+    month_start = None
+    month_end = None
+    if view_mode == 'month' and selected_month:
+        month_start, month_end = _parse_month_range(selected_month)
+        if not (month_start and month_end):
+            view_mode = 'all'
+            selected_month = ''
+            flash('月份格式无效，已切换到全部分析。', 'warning')
+
     stocks = Stock.query.all()
 
     analysis_data = []
     for stock in stocks:
-        trades = Trade.query.filter_by(stock_id=stock.id).order_by(Trade.trade_date).all()
+        stock_trades_query = Trade.query.filter_by(stock_id=stock.id)
+        if view_mode == 'month' and month_start and month_end:
+            stock_trades_query = stock_trades_query.filter(
+                Trade.trade_date >= month_start,
+                Trade.trade_date < month_end
+            )
+        trades = stock_trades_query.order_by(Trade.trade_date).all()
 
         if not trades:
             continue
@@ -128,7 +210,13 @@ def analysis():
             'return_rate': return_rate
         })
 
-    return render_template('analysis.html', analysis_data=analysis_data)
+    return render_template(
+        'analysis.html',
+        analysis_data=analysis_data,
+        view_mode=view_mode,
+        selected_month=selected_month,
+        available_months=available_months
+    )
 
 @views_bp.route('/stock/<int:stock_id>')
 def stock_detail(stock_id):
