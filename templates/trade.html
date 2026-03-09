@@ -4,16 +4,18 @@
 
 {% block content %}
 <h2 class="mb-4">交易记录</h2>
+{% set next_sort_mode = 'default' if sort_mode == 'stock_name' else 'stock_name' %}
 
 <div class="card mb-3">
     <div class="card-body d-flex flex-wrap gap-2 align-items-center">
-        <a href="{{ url_for('views.trades', view='all') }}"
+        <a href="{{ url_for('views.trades', view='all', sort=sort_mode) }}"
            class="btn btn-sm {% if view_mode == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
             全部查看
         </a>
 
         <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ url_for('views.trades') }}">
             <input type="hidden" name="view" value="month">
+            <input type="hidden" name="sort" value="{{ sort_mode }}">
             <select class="form-select form-select-sm" name="month">
                 <option value="">选择月份</option>
                 {% for month in available_months %}
@@ -37,7 +39,12 @@
                     <tr>
                         <th>日期</th>
                         <th>股票代码</th>
-                        <th>股票名称</th>
+                        <th>
+                            <a class="text-decoration-none text-dark"
+                               href="{{ url_for('views.trades', view=view_mode, month=selected_month, sort=next_sort_mode) }}">
+                                股票名称{% if sort_mode == 'stock_name' %}（按名称）{% else %}（点击按名称）{% endif %}
+                            </a>
+                        </th>
                         <th>类型</th>
                         <th>价格</th>
                         <th>数量</th>
@@ -53,7 +60,12 @@
                     <tr>
                         <td>{{ trade.trade_date }}</td>
                         <td>{{ trade.stock.code }}</td>
-                        <td>{{ trade.stock.name }}</td>
+                        <td>
+                            <a class="text-decoration-none"
+                               href="{{ url_for('views.trades', view=view_mode, month=selected_month, sort=next_sort_mode) }}">
+                                {{ trade.stock.name }}
+                            </a>
+                        </td>
                         <td>
                             {% if trade.trade_type == 'buy' %}
                             <span class="badge bg-success">买入</span>
@@ -82,11 +94,11 @@
         <nav>
             <ul class="pagination justify-content-center">
                 {% if trades.has_prev %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.prev_num, view=view_mode, month=selected_month) }}">上一页</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.prev_num, view=view_mode, month=selected_month, sort=sort_mode) }}">上一页</a></li>
                 {% endif %}
                 <li class="page-item active"><span class="page-link">{{ trades.page }} / {{ trades.pages }}</span></li>
                 {% if trades.has_next %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.next_num, view=view_mode, month=selected_month) }}">下一页</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('views.trades', page=trades.next_num, view=view_mode, month=selected_month, sort=sort_mode) }}">下一页</a></li>
                 {% endif %}
             </ul>
         </nav>

@@ -65,10 +65,13 @@ def trades():
     per_page = 20
     view_mode = request.args.get('view', 'all')
     selected_month = request.args.get('month', '').strip()
+    sort_mode = request.args.get('sort', 'default')
     available_months = _available_trade_months()
 
     if view_mode not in {'all', 'month'}:
         view_mode = 'all'
+    if sort_mode not in {'default', 'stock_name'}:
+        sort_mode = 'default'
 
     if view_mode == 'month' and not selected_month and available_months:
         selected_month = available_months[0]
@@ -86,7 +89,10 @@ def trades():
             selected_month = ''
             flash('月份格式无效，已切换到全部记录。', 'warning')
 
-    trades_query = trades_query.order_by(Trade.trade_date.desc(), Trade.id.desc())
+    if sort_mode == 'stock_name':
+        trades_query = trades_query.join(Stock).order_by(Stock.name.asc(), Trade.trade_date.desc(), Trade.id.desc())
+    else:
+        trades_query = trades_query.order_by(Trade.trade_date.desc(), Trade.id.desc())
     trades = trades_query.paginate(page=page, per_page=per_page, error_out=False)
 
     return render_template(
@@ -94,7 +100,8 @@ def trades():
         trades=trades,
         view_mode=view_mode,
         selected_month=selected_month,
-        available_months=available_months
+        available_months=available_months,
+        sort_mode=sort_mode
     )
 
 @views_bp.route('/trade/add', methods=['GET', 'POST'])

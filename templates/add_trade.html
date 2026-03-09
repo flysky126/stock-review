@@ -50,7 +50,17 @@
 
             <div class="mb-3">
                 <label class="form-label">买入原因/卖出原因</label>
-                <textarea class="form-control" name="buy_reason" rows="2" placeholder="如：买入-突破均线；卖出-达到止盈目标"></textarea>
+                <select class="form-select" name="buy_reason">
+                    <option value="">不选择（可选）</option>
+                    <option value="买入-突破均线">买入-突破均线</option>
+                    <option value="买入-估值低位">买入-估值低位</option>
+                    <option value="买入-财报超预期">买入-财报超预期</option>
+                    <option value="买入-趋势确认">买入-趋势确认</option>
+                    <option value="卖出-达到止盈目标">卖出-达到止盈目标</option>
+                    <option value="卖出-触发止损">卖出-触发止损</option>
+                    <option value="卖出-基本面转弱">卖出-基本面转弱</option>
+                    <option value="卖出-仓位调整">卖出-仓位调整</option>
+                </select>
             </div>
 
             <div class="mb-3">
