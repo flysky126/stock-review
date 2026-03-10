@@ -8,22 +8,39 @@
 <div class="card mb-3">
     <div class="card-body">
         <form method="GET" action="{{ url_for('views.market_query') }}" class="row g-3">
-            <div class="col-md-9">
+            <div class="col-md-7">
                 <label class="form-label">股票代码或已记录名称</label>
                 <input
                     type="text"
                     class="form-control"
                     name="stock_name"
                     value="{{ stock_query }}"
-                    placeholder="如 600519 / 000001.SZ / AAPL（中文名需在交易记录中已存在）"
+                    placeholder="A股: 600519 / 000001.SZ；港股: 0700 / 0700.HK；美股: AAPL"
                 >
             </div>
-            <div class="col-md-3 d-flex align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">时间范围</label>
+                <select name="period" class="form-select">
+                    {% for period_key, period_cfg in period_options.items() %}
+                    <option value="{{ period_key }}" {% if selected_period == period_key %}selected{% endif %}>
+                        {{ period_cfg.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search me-2"></i>查询近一月
+                    <i class="bi bi-search me-2"></i>查询走势
                 </button>
             </div>
         </form>
+        <div class="alert alert-light border mt-3 mb-0 small">
+            <div class="fw-bold mb-1">查询格式参考</div>
+            <div>A 股：<code>600519</code> / <code>000001.SZ</code> / <code>sh600519</code></div>
+            <div>港股：<code>0700</code> / <code>0700.HK</code> / <code>hk0700</code></div>
+            <div>美股：<code>AAPL</code> / <code>MSFT</code> / <code>BRK-B</code></div>
+            <div class="text-muted mt-1">中文名称仅支持你已录入交易记录中的股票。</div>
+        </div>
     </div>
 </div>
 
@@ -39,7 +56,7 @@
 <div class="card">
     <div class="card-header bg-white">
         <h5 class="mb-0">
-            {{ resolved_name }}（{{ resolved_code }}）近一个月收盘价走势
+            {{ resolved_name }}（{{ resolved_code }}）{{ period_text }}收盘价走势
         </h5>
     </div>
     <div class="card-body">
@@ -49,6 +66,54 @@
         <div class="mt-3 text-muted small">
             区间：{{ chart_labels[0] }} 至 {{ chart_labels[-1] }}
         </div>
+    </div>
+</div>
+{% endif %}
+
+{% if stock_profile %}
+<div class="card mt-3">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">股票简介</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-6"><strong>名称：</strong>{{ stock_profile.name }}</div>
+            <div class="col-md-6"><strong>代码：</strong>{{ stock_profile.symbol }}</div>
+            {% if stock_profile.exchange %}
+            <div class="col-md-6"><strong>交易所：</strong>{{ stock_profile.exchange }}</div>
+            {% endif %}
+            {% if stock_profile.country %}
+            <div class="col-md-6"><strong>国家/地区：</strong>{{ stock_profile.country }}</div>
+            {% endif %}
+            {% if stock_profile.currency %}
+            <div class="col-md-6"><strong>币种：</strong>{{ stock_profile.currency }}</div>
+            {% endif %}
+            {% if stock_profile.market_cap %}
+            <div class="col-md-6"><strong>市值：</strong>{{ stock_profile.market_cap }}</div>
+            {% endif %}
+            {% if stock_profile.sector %}
+            <div class="col-md-6"><strong>行业板块：</strong>{{ stock_profile.sector }}</div>
+            {% endif %}
+            {% if stock_profile.industry %}
+            <div class="col-md-6"><strong>细分行业：</strong>{{ stock_profile.industry }}</div>
+            {% endif %}
+        </div>
+
+        {% if stock_profile.website %}
+        <div class="mt-3">
+            <strong>官网：</strong>
+            <a href="{{ stock_profile.website }}" target="_blank" rel="noopener noreferrer">{{ stock_profile.website }}</a>
+        </div>
+        {% endif %}
+
+        {% if stock_profile.summary %}
+        <div class="mt-3">
+            <strong>简介：</strong>
+            <div class="text-muted">{{ stock_profile.summary }}</div>
+        </div>
+        {% elif stock_profile.error %}
+        <div class="mt-3 text-muted small">{{ stock_profile.error }}</div>
+        {% endif %}
     </div>
 </div>
 {% endif %}

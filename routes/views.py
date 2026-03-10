@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import sqlalchemy as sa
 import yfinance as yf
@@ -8,6 +8,12 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from models import Stock, Trade, db
 
 views_bp = Blueprint('views', __name__)
+
+PERIOD_CONFIG = {
+    '1m': {'label': '近一月', 'yf_period': '1mo'},
+    '6m': {'label': '近半年', 'yf_period': '6mo'},
+    '1y': {'label': '近一年', 'yf_period': '1y'},
+}
 
 
 def _parse_month_range(month_value):
@@ -39,6 +45,22 @@ def _available_trade_months():
     return months
 
 
+def _resolve_period(period_value):
+    period_key = (period_value or '').strip().lower()
+    if period_key not in PERIOD_CONFIG:
+        period_key = '1m'
+    period_cfg = PERIOD_CONFIG[period_key]
+    return period_key, period_cfg['label'], period_cfg['yf_period']
+
+
+def _hk_code_to_yf_symbol(code):
+    raw = str(code or '').strip()
+    if not re.fullmatch(r'\d{1,5}', raw):
+        return None
+    normalized = raw.zfill(4) if len(raw) <= 4 else raw
+    return f'{normalized}.HK'
+
+
 def _cn_code_to_yf_symbol(code):
     code = str(code or '').strip().zfill(6)
     if not re.fullmatch(r'\d{6}', code):
@@ -67,10 +89,17 @@ def _resolve_stock_symbol(stock_query):
 
     upper_keyword = keyword.upper()
 
-    # sh600519 / sz000001 / bj430047
-    prefixed_match = re.fullmatch(r'^(SH|SZ|BJ)(\d{6})$', upper_keyword)
+    # sh600519 / sz000001 / bj430047 / hk0700
+    prefixed_match = re.fullmatch(r'^(SH|SZ|BJ|HK)(\d{1,6})$', upper_keyword)
     if prefixed_match:
         market, code = prefixed_match.groups()
+        if market == 'HK':
+            symbol = _hk_code_to_yf_symbol(code)
+            if symbol:
+                return symbol, code, None
+            return None, None, '港股代码格式不正确，请输入如 0700 或 hk0700。'
+        if len(code) != 6:
+            return None, None, 'A股代码需为 6 位数字。'
         return f'{code}.{market}', code, None
 
     # 600519 / 000001 / 430047
@@ -78,6 +107,12 @@ def _resolve_stock_symbol(stock_query):
         symbol = _cn_code_to_yf_symbol(keyword)
         if symbol:
             return symbol, keyword.zfill(6), None
+
+    # 0700 / 700 / 9988 -> 港股
+    if re.fullmatch(r'^\d{1,5}$', keyword):
+        hk_symbol = _hk_code_to_yf_symbol(keyword)
+        if hk_symbol:
+            return hk_symbol, keyword, None
 
     # Already in yfinance-style market symbol (e.g. 000001.SZ, 600519.SS, 430047.BJ, 0700.HK)
     if re.fullmatch(r'^\d{4,6}\.(SZ|SS|BJ|HK)$', upper_keyword):
@@ -100,7 +135,75 @@ def _resolve_stock_symbol(stock_query):
         if symbol:
             return symbol, fuzzy_stock.code, f'未找到完全匹配，已使用本地记录股票：{fuzzy_stock.name}（{fuzzy_stock.code}）'
 
-    return None, None, '未识别输入。请用代码查询（如 600519、000001.SZ、AAPL）；中文名称需先在交易记录里存在。'
+    return None, None, '未识别输入。请用代码查询（如 600519、000001.SZ、0700.HK、AAPL）；中文名称需先在交易记录里存在。'
+
+
+def _format_market_cap(market_cap_value, currency):
+    try:
+        cap = float(market_cap_value)
+    except (TypeError, ValueError):
+        return ''
+
+    if cap <= 0:
+        return ''
+
+    if cap >= 1_000_000_000_000:
+        cap_text = f'{cap / 1_000_000_000_000:.2f} 万亿'
+    elif cap >= 100_000_000:
+        cap_text = f'{cap / 100_000_000:.2f} 亿'
+    elif cap >= 10_000:
+        cap_text = f'{cap / 10_000:.2f} 万'
+    else:
+        cap_text = f'{cap:,.0f}'
+
+    if currency:
+        return f'{cap_text} {currency}'
+    return cap_text
+
+
+def _build_stock_profile(ticker, symbol, fallback_name):
+    info = {}
+    fast_info = {}
+    profile_error = None
+
+    try:
+        info = ticker.get_info() or {}
+    except Exception as exc:
+        profile_error = f'简介获取失败：{exc}'
+
+    try:
+        fast_info = dict(ticker.fast_info) if getattr(ticker, 'fast_info', None) else {}
+    except Exception:
+        fast_info = {}
+
+    currency = info.get('currency') or fast_info.get('currency') or ''
+    market_cap_value = info.get('marketCap') or fast_info.get('marketCap')
+    summary = (info.get('longBusinessSummary') or '').strip()
+
+    if len(summary) > 500:
+        summary = f'{summary[:500].rstrip()}...'
+
+    profile = {
+        'name': info.get('longName') or info.get('shortName') or fallback_name or symbol,
+        'symbol': symbol,
+        'exchange': info.get('fullExchangeName') or info.get('exchange') or '',
+        'currency': currency,
+        'market_cap': _format_market_cap(market_cap_value, currency),
+        'sector': info.get('sector') or '',
+        'industry': info.get('industry') or '',
+        'country': info.get('country') or '',
+        'website': info.get('website') or '',
+        'summary': summary,
+        'error': profile_error,
+    }
+
+    has_main_content = any(
+        profile.get(field)
+        for field in ['exchange', 'market_cap', 'sector', 'industry', 'country', 'website', 'summary']
+    )
+    if not has_main_content and profile_error:
+        return {'name': profile['name'], 'symbol': symbol, 'error': profile_error}
+    return profile
 
 @views_bp.route('/')
 def index():
@@ -297,10 +400,12 @@ def analysis():
 @views_bp.route('/market/query')
 def market_query():
     stock_query = request.args.get('stock_name', '').strip()
+    selected_period, period_text, yf_period = _resolve_period(request.args.get('period', '1m'))
     chart_labels = []
     chart_values = []
     resolved_name = ''
     resolved_code = ''
+    stock_profile = None
     info_message = ''
     error_message = ''
 
@@ -314,15 +419,11 @@ def market_query():
                     error_message = resolve_message
 
             if symbol:
-                end_date = datetime.now().date()
-                start_date = end_date - timedelta(days=30)
-                # yfinance uses [start, end), so add one day to include latest trading day.
-                fetch_end = end_date + timedelta(days=1)
+                ticker = yf.Ticker(symbol)
 
                 price_df = yf.download(
                     symbol,
-                    start=start_date.strftime('%Y-%m-%d'),
-                    end=fetch_end.strftime('%Y-%m-%d'),
+                    period=yf_period,
                     interval='1d',
                     auto_adjust=False,
                     progress=False,
@@ -330,7 +431,7 @@ def market_query():
                 )
 
                 if price_df is None or price_df.empty:
-                    error_message = '未查询到近一个月行情数据。'
+                    error_message = f'未查询到{period_text}行情数据。'
                 else:
                     close_series = None
                     if 'Close' in price_df.columns:
@@ -364,12 +465,13 @@ def market_query():
                             chart_values.append(price)
 
                         if not chart_labels or not chart_values:
-                            error_message = '近一个月价格数据为空或格式异常。'
+                            error_message = f'{period_text}价格数据为空或格式异常。'
                         else:
-                            resolved_name = name or symbol
+                            stock_profile = _build_stock_profile(ticker, symbol, name or symbol)
+                            resolved_name = stock_profile.get('name') or name or symbol
                             resolved_code = symbol
                             if not info_message:
-                                info_message = f'已展示 {resolved_name}（{resolved_code}）近一个月收盘价走势。'
+                                info_message = f'已展示 {resolved_name}（{resolved_code}）{period_text}收盘价走势。'
             elif not error_message:
                 error_message = '未找到可用股票代码，请检查输入。'
         except ImportError:
@@ -384,6 +486,10 @@ def market_query():
         chart_values=chart_values,
         resolved_name=resolved_name,
         resolved_code=resolved_code,
+        selected_period=selected_period,
+        period_text=period_text,
+        period_options=PERIOD_CONFIG,
+        stock_profile=stock_profile,
         info_message=info_message,
         error_message=error_message
     )
