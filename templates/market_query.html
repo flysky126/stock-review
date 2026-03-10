@@ -43,7 +43,9 @@
         </h5>
     </div>
     <div class="card-body">
-        <canvas id="priceChart"></canvas>
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
         <div class="mt-3 text-muted small">
             区间：{{ chart_labels[0] }} 至 {{ chart_labels[-1] }}
         </div>
@@ -87,8 +89,14 @@ new Chart(ctx, {
 });
 </script>
 <style>
-#priceChart {
-    min-height: 360px;
+.chart-container {
+    position: relative;
+    height: 360px;
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
 </style>
 {% endif %}
