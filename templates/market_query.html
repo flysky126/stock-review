@@ -9,13 +9,13 @@
     <div class="card-body">
         <form method="GET" action="{{ url_for('views.market_query') }}" class="row g-3">
             <div class="col-md-9">
-                <label class="form-label">股票名称</label>
+                <label class="form-label">股票代码或已记录名称</label>
                 <input
                     type="text"
                     class="form-control"
                     name="stock_name"
                     value="{{ stock_query }}"
-                    placeholder="输入股票名称（如：贵州茅台）或 6 位代码（如：600519）"
+                    placeholder="如 600519 / 000001.SZ / AAPL（中文名需在交易记录中已存在）"
                 >
             </div>
             <div class="col-md-3 d-flex align-items-end">

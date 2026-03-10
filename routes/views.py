@@ -1,7 +1,11 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from models import db, Stock, Trade
+import re
 from datetime import datetime, timedelta
+
 import sqlalchemy as sa
+import yfinance as yf
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+
+from models import Stock, Trade, db
 
 views_bp = Blueprint('views', __name__)
 
@@ -35,44 +39,68 @@ def _available_trade_months():
     return months
 
 
-def _resolve_stock_symbol(stock_query):
-    """Resolve stock code by exact name, partial name, or direct code."""
-    import akshare as ak
+def _cn_code_to_yf_symbol(code):
+    code = str(code or '').strip().zfill(6)
+    if not re.fullmatch(r'\d{6}', code):
+        return None
 
+    if code.startswith(('6', '9', '5')):
+        suffix = 'SS'
+    elif code.startswith(('8', '4', '7')):
+        suffix = 'BJ'
+    else:
+        suffix = 'SZ'
+    return f'{code}.{suffix}'
+
+
+def _resolve_stock_symbol(stock_query):
+    """
+    Resolve query into yfinance symbol.
+    Supports:
+    - A-share code: 600519 / sh600519 / 000001.SZ
+    - US ticker: AAPL / MSFT
+    - Existing stock name in local records
+    """
     keyword = (stock_query or '').strip()
     if not keyword:
         return None, None, None
 
-    spot_df = ak.stock_zh_a_spot_em()
-    if spot_df is None or spot_df.empty:
-        return None, None, '未获取到股票列表，请稍后重试。'
+    upper_keyword = keyword.upper()
 
-    required_columns = {'代码', '名称'}
-    if not required_columns.issubset(set(spot_df.columns)):
-        return None, None, '股票列表字段异常，请稍后重试。'
+    # sh600519 / sz000001 / bj430047
+    prefixed_match = re.fullmatch(r'^(SH|SZ|BJ)(\d{6})$', upper_keyword)
+    if prefixed_match:
+        market, code = prefixed_match.groups()
+        return f'{code}.{market}', code, None
 
-    spot_df = spot_df.copy()
-    spot_df['代码'] = spot_df['代码'].astype(str).str.zfill(6)
-    spot_df['名称'] = spot_df['名称'].astype(str)
+    # 600519 / 000001 / 430047
+    if re.fullmatch(r'^\d{6}$', keyword):
+        symbol = _cn_code_to_yf_symbol(keyword)
+        if symbol:
+            return symbol, keyword.zfill(6), None
 
-    if keyword.isdigit():
-        code = keyword.zfill(6)
-        code_match = spot_df[spot_df['代码'] == code]
-        if not code_match.empty:
-            row = code_match.iloc[0]
-            return row['代码'], row['名称'], None
+    # Already in yfinance-style market symbol (e.g. 000001.SZ, 600519.SS, 430047.BJ, 0700.HK)
+    if re.fullmatch(r'^\d{4,6}\.(SZ|SS|BJ|HK)$', upper_keyword):
+        return upper_keyword, upper_keyword, None
 
-    exact_match = spot_df[spot_df['名称'] == keyword]
-    if not exact_match.empty:
-        row = exact_match.iloc[0]
-        return row['代码'], row['名称'], None
+    # US / global ticker symbols (e.g. AAPL, BRK-B, 9988.HK)
+    if re.fullmatch(r'^[A-Z][A-Z0-9.-]{0,15}$', upper_keyword):
+        return upper_keyword, upper_keyword, None
 
-    fuzzy_match = spot_df[spot_df['名称'].str.contains(keyword, na=False, regex=False)]
-    if not fuzzy_match.empty:
-        row = fuzzy_match.iloc[0]
-        return row['代码'], row['名称'], f'未找到完全匹配，已使用最接近股票：{row["名称"]}（{row["代码"]}）'
+    # Try resolve Chinese name from local saved stocks
+    exact_stock = Stock.query.filter(Stock.name == keyword).first()
+    if exact_stock:
+        symbol = _cn_code_to_yf_symbol(exact_stock.code)
+        if symbol:
+            return symbol, exact_stock.code, None
 
-    return None, None, '未找到对应股票，请检查名称后重试。'
+    fuzzy_stock = Stock.query.filter(Stock.name.contains(keyword)).order_by(Stock.id.asc()).first()
+    if fuzzy_stock:
+        symbol = _cn_code_to_yf_symbol(fuzzy_stock.code)
+        if symbol:
+            return symbol, fuzzy_stock.code, f'未找到完全匹配，已使用本地记录股票：{fuzzy_stock.name}（{fuzzy_stock.code}）'
+
+    return None, None, '未识别输入。请用代码查询（如 600519、000001.SZ、AAPL）；中文名称需先在交易记录里存在。'
 
 @views_bp.route('/')
 def index():
@@ -280,52 +308,72 @@ def market_query():
         try:
             symbol, name, resolve_message = _resolve_stock_symbol(stock_query)
             if resolve_message:
-                info_message = resolve_message
+                if symbol:
+                    info_message = resolve_message
+                else:
+                    error_message = resolve_message
 
             if symbol:
-                import akshare as ak
-
                 end_date = datetime.now().date()
                 start_date = end_date - timedelta(days=30)
-                price_df = ak.stock_zh_a_hist(
-                    symbol=symbol,
-                    period='daily',
-                    start_date=start_date.strftime('%Y%m%d'),
-                    end_date=end_date.strftime('%Y%m%d'),
-                    adjust='qfq'
+                # yfinance uses [start, end), so add one day to include latest trading day.
+                fetch_end = end_date + timedelta(days=1)
+
+                price_df = yf.download(
+                    symbol,
+                    start=start_date.strftime('%Y-%m-%d'),
+                    end=fetch_end.strftime('%Y-%m-%d'),
+                    interval='1d',
+                    auto_adjust=False,
+                    progress=False,
+                    threads=False
                 )
 
                 if price_df is None or price_df.empty:
                     error_message = '未查询到近一个月行情数据。'
-                elif not {'日期', '收盘'}.issubset(set(price_df.columns)):
-                    error_message = '行情数据字段异常，请稍后重试。'
                 else:
-                    price_df = price_df.sort_values('日期')
-                    chart_labels = []
-                    chart_values = []
-                    for date_value, close_value in zip(price_df['日期'].tolist(), price_df['收盘'].tolist()):
-                        if hasattr(date_value, 'strftime'):
-                            label = date_value.strftime('%Y-%m-%d')
-                        else:
-                            label = str(date_value)
-                        try:
-                            price = float(close_value)
-                        except (TypeError, ValueError):
-                            continue
-                        chart_labels.append(label)
-                        chart_values.append(price)
-
-                    if not chart_labels or not chart_values:
-                        error_message = '近一个月价格数据为空或格式异常。'
+                    close_series = None
+                    if 'Close' in price_df.columns:
+                        close_series = price_df['Close']
+                        if hasattr(close_series, 'columns'):
+                            close_series = close_series.iloc[:, 0]
                     else:
-                        resolved_name = name
-                        resolved_code = symbol
-                        if not info_message:
-                            info_message = f'已展示 {resolved_name}（{resolved_code}）近一个月收盘价走势。'
+                        for column in price_df.columns:
+                            if str(column).lower() == 'close':
+                                close_series = price_df[column]
+                                break
+
+                    if close_series is None or len(close_series) == 0:
+                        error_message = '行情数据字段异常，未找到收盘价。'
+                    else:
+                        close_series = close_series.sort_index()
+                        chart_labels = []
+                        chart_values = []
+                        for date_value, close_value in close_series.items():
+                            if hasattr(date_value, 'strftime'):
+                                label = date_value.strftime('%Y-%m-%d')
+                            else:
+                                label = str(date_value)
+                            try:
+                                price = float(close_value)
+                            except (TypeError, ValueError):
+                                continue
+                            if price != price:  # NaN check
+                                continue
+                            chart_labels.append(label)
+                            chart_values.append(price)
+
+                        if not chart_labels or not chart_values:
+                            error_message = '近一个月价格数据为空或格式异常。'
+                        else:
+                            resolved_name = name or symbol
+                            resolved_code = symbol
+                            if not info_message:
+                                info_message = f'已展示 {resolved_name}（{resolved_code}）近一个月收盘价走势。'
             elif not error_message:
                 error_message = '未找到可用股票代码，请检查输入。'
         except ImportError:
-            error_message = '当前环境未安装 akshare，请先安装依赖后重试。'
+            error_message = '当前环境未安装 yfinance，请先安装依赖后重试。'
         except Exception as exc:
             error_message = f'行情查询失败：{exc}'
 

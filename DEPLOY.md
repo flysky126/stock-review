@@ -75,6 +75,18 @@ git push -u origin main
 
 ---
 
+### 方案5: Vercel
+
+1. 注册并登录 https://vercel.com
+2. Import Git Repository，选择本仓库
+3. 保持默认构建配置（项目已提供 `vercel.json`）
+4. 可选设置环境变量：
+   - `SECRET_KEY`（建议）
+   - `DATABASE_URL`（若需要持久化数据）
+5. 部署完成后访问 `/market/query`，输入 `600519` / `000001.SZ` / `AAPL` 验证 `yfinance` 查询
+
+---
+
 ## 三、一键部署按钮
 
 项目已配置 Render 和 Railway 部署按钮。
