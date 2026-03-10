@@ -55,9 +55,10 @@ def _resolve_period(period_value):
 
 def _hk_code_to_yf_symbol(code):
     raw = str(code or '').strip()
-    if not re.fullmatch(r'\d{1,5}', raw):
+    if not re.fullmatch(r'\d{1,6}', raw):
         return None
-    normalized = raw.zfill(4) if len(raw) <= 4 else raw
+    normalized_core = raw.lstrip('0') or '0'
+    normalized = normalized_core.zfill(4) if len(normalized_core) <= 4 else normalized_core
     return f'{normalized}.HK'
 
 
@@ -89,6 +90,8 @@ def _resolve_stock_symbol(stock_query):
 
     upper_keyword = keyword.upper()
 
+    original_keyword = keyword
+
     # sh600519 / sz000001 / bj430047 / hk0700
     prefixed_match = re.fullmatch(r'^(SH|SZ|BJ|HK)(\d{1,6})$', upper_keyword)
     if prefixed_match:
@@ -96,7 +99,10 @@ def _resolve_stock_symbol(stock_query):
         if market == 'HK':
             symbol = _hk_code_to_yf_symbol(code)
             if symbol:
-                return symbol, code, None
+                normalized_msg = None
+                if f'{code}.HK' != symbol:
+                    normalized_msg = f'已自动将 {code}.HK 规范为 {symbol} 查询。'
+                return symbol, code, normalized_msg
             return None, None, '港股代码格式不正确，请输入如 0700 或 hk0700。'
         if len(code) != 6:
             return None, None, 'A股代码需为 6 位数字。'
@@ -112,11 +118,28 @@ def _resolve_stock_symbol(stock_query):
     if re.fullmatch(r'^\d{1,5}$', keyword):
         hk_symbol = _hk_code_to_yf_symbol(keyword)
         if hk_symbol:
-            return hk_symbol, keyword, None
+            normalized_msg = None
+            if f'{keyword}.HK' != hk_symbol:
+                normalized_msg = f'已自动将 {keyword}.HK 规范为 {hk_symbol} 查询。'
+            return hk_symbol, keyword, normalized_msg
 
     # Already in yfinance-style market symbol (e.g. 000001.SZ, 600519.SS, 430047.BJ, 0700.HK)
     if re.fullmatch(r'^\d{4,6}\.(SZ|SS|BJ|HK)$', upper_keyword):
+        if upper_keyword.endswith('.HK'):
+            code = upper_keyword.split('.', 1)[0]
+            hk_symbol = _hk_code_to_yf_symbol(code)
+            if hk_symbol:
+                normalized_msg = None
+                if hk_symbol != upper_keyword:
+                    normalized_msg = f'已自动将 {upper_keyword} 规范为 {hk_symbol} 查询。'
+                return hk_symbol, upper_keyword, normalized_msg
         return upper_keyword, upper_keyword, None
+
+    # Broker-style US suffix (e.g. NVDA.US / AAPL.NASDAQ)
+    us_suffixed_match = re.fullmatch(r'^([A-Z][A-Z0-9.-]{0,15})\.(US|NYSE|NASDAQ|NQ)$', upper_keyword)
+    if us_suffixed_match:
+        base_symbol = us_suffixed_match.group(1)
+        return base_symbol, base_symbol, f'已自动将 {upper_keyword} 规范为 {base_symbol} 查询。'
 
     # US / global ticker symbols (e.g. AAPL, BRK-B, 9988.HK)
     if re.fullmatch(r'^[A-Z][A-Z0-9.-]{0,15}$', upper_keyword):
@@ -135,7 +158,7 @@ def _resolve_stock_symbol(stock_query):
         if symbol:
             return symbol, fuzzy_stock.code, f'未找到完全匹配，已使用本地记录股票：{fuzzy_stock.name}（{fuzzy_stock.code}）'
 
-    return None, None, '未识别输入。请用代码查询（如 600519、000001.SZ、0700.HK、AAPL）；中文名称需先在交易记录里存在。'
+    return None, None, f'未识别输入：{original_keyword}。请用代码查询（如 600519、000001.SZ、0700.HK、AAPL、NVDA.US）；中文名称需先在交易记录里存在。'
 
 
 def _format_market_cap(market_cap_value, currency):
